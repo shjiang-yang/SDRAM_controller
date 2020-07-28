@@ -25,7 +25,6 @@ wire    [ 1:0]          sdram_bank_addr     ;
 wire                    arbit_read_req      ; 
 wire                    arbit_read_end      ; 
 wire                    data_vld            ; 
-wire                    read_end            ;
 
 // ===============================================
 // ********** define params and signals ********
@@ -44,8 +43,9 @@ initial begin
     read_trig       = 0 ;
     #50;
     arbit_read_ack  = 1 ;
-    #5000;
+    #700;
     refresh_req     = 1 ;
+    arbit_read_ack  = 0 ;
     #1000;
     $stop; 
 end
@@ -70,8 +70,7 @@ SDRAM_read SDRAM_read_inst (
     .arbit_read_end         (   arbit_read_end      )   ,
     // others
     .read_trig              (   read_trig           )   ,
-    .data_vld               (   data_vld            )   ,
-    .read_end               (   read_end            )   
+    .data_vld               (   data_vld            )   
 );
 
 

@@ -5,7 +5,7 @@
 // description:     uart transfer module
 //
 //===============================================
-`include "config.v"
+// `include "config.v"
 
 module uart_tx #(
     parameter           BAUD_RATE   =   115200
@@ -16,7 +16,8 @@ module uart_tx #(
     // uart interface
     output  reg         tx              ,
     // others
-    input               tx_ready        ,
+    input               tx_ready        ,  // data_ready
+    output              tx_done         ,
     input       [7:0]   tx_data         
 );
 
@@ -24,11 +25,9 @@ module uart_tx #(
 //====================================================\
 // ********* define param and internal signal ******
 //====================================================/
-`ifndef SIM
-    localparam  BAUD_END = 56 ;
-`else
-    localparam  BAUD_END = (1_000_000_000)/(BAUD_RATE * 10) ;
-`endif
+
+localparam  BAUD_END = (1_000_000_000)/(BAUD_RATE * 10) ;
+
 
 localparam  BIT_END  = 9    ;
 
@@ -48,7 +47,7 @@ reg     [2:0]   tx_ready_r  ;
 // ***************** main code ******************
 //====================================================/
 // tx_trig
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         tx_ready_r <= 3'b000        ;
     else
@@ -59,7 +58,7 @@ assign tx_trig = tx_ready_r[1] & (~tx_ready_r[2]);
 
 
 // tx_data_r
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         tx_data_r <= 8'd0;
     else if (tx_trig == 1'b1)
@@ -68,7 +67,7 @@ end
 
 
 // tx_flag
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         tx_flag <= 1'b0;
     else if (tx_trig == 1'b1)
@@ -77,9 +76,11 @@ always @(posedge sys_clk_50M or negedge rst_n) begin
         tx_flag <= 1'b0;
 end
 
+// tx_done
+assign tx_done = ~tx_flag   ;
 
 // baud_cnt
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         baud_cnt <= 13'd0;
     else if( baud_cnt == BAUD_END)
@@ -92,7 +93,7 @@ end
 
 
 // bit_flag
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if(rst_n == 1'b0)
         bit_flag <= 1'b0;
     else if(baud_cnt == BAUD_END)
@@ -103,7 +104,7 @@ end
 
 
 // bit_cnt
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if(rst_n == 1'b0)
         bit_cnt <= 4'd0;
     else if(bit_flag == 1'b1 && bit_cnt == BIT_END)
@@ -114,7 +115,7 @@ end
 
 
 // tx
-always @(posedge sys_clk_50M or negedge rst_n) begin
+always @(posedge sys_clk_100M or negedge rst_n) begin
     if(rst_n == 1'b0)
         tx <= 1'b1;
     else if(tx_flag == 1'b1)

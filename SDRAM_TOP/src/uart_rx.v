@@ -23,11 +23,7 @@ module uart_rx #(
 //================================================================\
 // ********* define parameter and internal signal **********
 //================================================================/
-`ifndef SIM
-    localparam      BAUD_END        =       56-1              ;
-`else
-    localparam      BAUD_END        =       (1_000_000_000)/(BAUD_RATE * 10)-1            ;
-`endif
+localparam      BAUD_END        =       (1_000_000_000)/(BAUD_RATE * 10)-1            ;
 
 localparam      BAUD_M          =       (BAUD_END+1)/2-1    ;
 localparam      BIT_NUM         =       8                   ;
@@ -45,7 +41,7 @@ wire                rx_start    ;
 //================================================================\
 // ******************** main code **************************
 //================================================================/
-always @(posedge sclk_50M) begin
+always @(posedge sclk_100M) begin
     rx_r1   <=      rx      ;
     rx_r2   <=      rx_r1   ;
     rx_r3   <=      rx_r2   ;
@@ -55,7 +51,7 @@ end
 assign rx_start =   (~rx_r2) & rx_r3    ;
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0)
         rx_flag     <=      1'b0    ;
     else if (rx_start == 1'b1)
@@ -67,7 +63,7 @@ always @(posedge sclk_50M or negedge s_rst_n) begin
 end
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0)
         baud_cnt    <=      13'd0   ;
     else if (baud_cnt == BAUD_END)
@@ -79,7 +75,7 @@ always @(posedge sclk_50M or negedge s_rst_n) begin
 end
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0)
         bit_flag    <=      1'b0    ;
     else if (baud_cnt == BAUD_M)
@@ -89,7 +85,7 @@ always @(posedge sclk_50M or negedge s_rst_n) begin
 end
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0)
         bit_cnt     <=      4'd0    ;
     else if (rx_flag == 1'b0)
@@ -101,7 +97,7 @@ always @(posedge sclk_50M or negedge s_rst_n) begin
 end
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0)
         rx_data     <=      8'd0    ;
     else if (bit_flag == 1'b1)
@@ -109,7 +105,7 @@ always @(posedge sclk_50M or negedge s_rst_n) begin
 end
 
 
-always @(posedge sclk_50M or negedge s_rst_n) begin
+always @(posedge sclk_100M or negedge s_rst_n) begin
     if (s_rst_n == 1'b0) 
         done_flag   <=      1'b0    ;
     else if (bit_flag == 1'b1 && bit_cnt == BIT_NUM)

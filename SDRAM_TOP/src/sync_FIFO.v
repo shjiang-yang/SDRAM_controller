@@ -8,7 +8,7 @@
 
 
 module sync_FIFO #(
-    parameter           DEPTH   =   4   ,
+    parameter           DEPTH   =   8   ,
     parameter           WIDTH   =   8   
 )(
     // system signals
@@ -27,7 +27,7 @@ module sync_FIFO #(
 // ================================================
 // ********* define params and signals *********
 // ================================================
-localparam                  DEPTH_BIT   =   $clog2(DEPTH)   ;
+localparam                  DEPTH_BIT   =   3   ;
 
 reg     [ WIDTH-1:0]      mem[DEPTH-1:0]      ;
 reg     [DEPTH_BIT:0]     write_pointer       ;
@@ -75,8 +75,7 @@ always @(posedge sysclk_100M or negedge rst_n) begin
 end
 
 // full
-assign least_eq = (write_pointer[DEPTH_BIT-1:0] == read_pointer[DEPTH_BIT-1:0]) ? 1'b1 : 1'b0   ;
-assign full = (write_pointer[DEPTH_BIT] ^ read_pointer[DEPTH_BIT]) & least_eq   ;
+assign full = ({~write_pointer[DEPTH_BIT], write_pointer[DEPTH_BIT-1:0]} == read_pointer) ? 1'b1 : 1'b0;
 
 // empty
 assign empty = (write_pointer == read_pointer) ? 1'b1 : 1'b0;

@@ -45,15 +45,15 @@ localparam          PRECHARGE   =   4'b0010     ;
 
 localparam          ACT_END     =   1           ;
 localparam          BURST_END   =   3           ;
-localparam          PRECH_END   =   1           ;
-localparam          WRITE_TIMEs =   1           ;
+localparam          PRECH_END   =   2           ;
+localparam          WRITE_TIMEs =   2           ;
 
 
 reg     [ 4:0]      state       ;
 reg                 act_cnt     ;
 reg     [ 1:0]      burst_cnt   ;
 reg     [ 7:0]      write_cnt   ;
-reg                 prech_cnt   ;
+reg     [ 1:0]      prech_cnt   ;
 wire                row_end     ;
 reg     [12:0]      row_addr    ;
 reg     [ 6:0]      col_addr_p  ;
@@ -128,6 +128,8 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         write_cnt   <=  8'd0    ;
+    else if (state == S_IDLE)
+        write_cnt   <=  8'd0    ;
     else if (burst_cnt == 2'd1 && write_cnt == WRITE_TIMEs)
         write_cnt   <=  8'd0    ;
     else if (burst_cnt == 2'd1)
@@ -157,11 +159,13 @@ end
 // prech_cnt
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
-        prech_cnt <=    1'b0;
+        prech_cnt <=    2'b0;
+    else if (state == S_PRECHG && prech_cnt == PRECH_END)
+        prech_cnt <=    prech_cnt;
     else if (state == S_PRECHG)
-        prech_cnt <=    1'b1;
+        prech_cnt <=    prech_cnt + 2'd1;
     else
-        prech_cnt <=    1'b0;
+        prech_cnt <=    2'b0;
 end
 
 // arbit_prech_end
@@ -222,8 +226,8 @@ always @(posedge sysclk_100M) begin
                     sdram_bank_addr =       sdram_bank_addr   ;
                     end
         S_PRECHG:
-                if (prech_cnt == 1'd0) begin
-                    cmd_reg         =       PRECH_END         ;
+                if (prech_cnt == 1'd1) begin
+                    cmd_reg         =       PRECHARGE         ;
                     sdram_addr      =       {4'b0000,col_addr_p, burst_cnt}    ;
                     sdram_bank_addr =       sdram_bank_addr   ;
                     end
