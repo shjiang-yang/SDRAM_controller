@@ -21,7 +21,7 @@ module debounce #(
 // ******** define params/signals *********
 // ============================================
 localparam              CNT_END     =   10_000_000/CLK_CYC  ;
-localparam              CNT_WIDTH   =   $clog2(CNT_END)     ;
+localparam              CNT_WIDTH   =   32     ;
 
 reg     [CNT_WIDTH-1:0] cnt =   'd0     ;
 reg     [ 2:0]          key_in_r        ;

@@ -41,7 +41,7 @@ wire                time2refresh                ;
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         cnt_refresh <= 13'd0;
-    else if (refresh_end == 1'b1)
+    else if (arbit_refresh_ack == 1'b1)
         cnt_refresh <= 13'd0;
     else if (cnt_refresh == CNT_7800ns)
         cnt_refresh <= cnt_refresh;
@@ -57,14 +57,12 @@ assign arbit_refresh_req    = time2refresh & (~arbit_refresh_ack);
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         cnt_cmd <= 4'd0;
-    else if (arbit_refresh_ack == 1'b0)
+    else if (arbit_refresh_req == 1'b1)
         cnt_cmd <= 4'd0;
     else if (cnt_cmd == CNT_70ns)
         cnt_cmd <= cnt_cmd;
-    else if (arbit_refresh_ack == 1'b1)
-        cnt_cmd <= cnt_cmd + 4'd1;
     else
-        cnt_cmd <= 4'd0;
+        cnt_cmd <= cnt_cmd + 4'd1;
 end
 
 // cmd_reg

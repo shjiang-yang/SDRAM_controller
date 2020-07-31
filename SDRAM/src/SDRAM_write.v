@@ -6,6 +6,13 @@
 // 
 // ====================================================
 
+// ---------------- define config --------------------
+`define     ROW_ADDR_END        938         // capacity per bank
+`define     COL_ADDR_END        256         // capacity per bank
+
+// bank (one-hot), can be {PINGPONG_BUFFER, BANK_INCR, BANK_ONE}
+`define     BANK_ONE
+
 
 module SDRAM_write(
     // system singals
@@ -46,34 +53,23 @@ localparam          PRECHARGE   =   4'b0010     ;
 localparam          ACT_END     =   1           ;
 localparam          BURST_END   =   3           ;
 localparam          PRECH_END   =   1           ;
-localparam          WRITE_TIMEs =   1           ;
+localparam          WRITE_TIMEs =   64          ;
 
 
 reg     [ 4:0]      state       ;
 reg                 act_cnt     ;
 reg     [ 1:0]      burst_cnt   ;
-reg     [ 7:0]      write_cnt   ;
+reg     [19:0]      write_cnt   ;
 reg                 prech_cnt   ;
 wire                row_end     ;
 reg     [12:0]      row_addr    ;
 reg     [ 6:0]      col_addr_p  ;
-reg     [ 2:0]      trig_r      ;
 
-wire                trig_rise   ;
 
 
 // =====================================================\
 // **************** main code **********************
 // =====================================================/
-// trig_rise
-always @(posedge sysclk_100M or negedge rst_n) begin
-    if (rst_n == 1'b0)
-        trig_r  <=  3'b000  ;
-    else
-        trig_r  <=  {trig_r[1:0], write_trig}   ;
-end
-
-assign trig_rise = trig_r[1] & (~trig_r[2]);
 
 // state machine
 always @(posedge sysclk_100M or negedge rst_n) begin
@@ -81,7 +77,7 @@ always @(posedge sysclk_100M or negedge rst_n) begin
         state   <=  S_IDLE  ;
     else case (state)
         S_IDLE:
-                if (trig_rise == 1'b1)
+                if (write_trig == 1'b1)
                     state   <=  S_REQ   ;
                 else
                     state   <=  S_IDLE  ;
@@ -128,9 +124,9 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         write_cnt   <=  8'd0    ;
-    else if (burst_cnt == 2'd1 && write_cnt == WRITE_TIMEs)
+    else if (burst_cnt == 2'd3 && write_cnt == WRITE_TIMEs-1)
         write_cnt   <=  8'd0    ;
-    else if (burst_cnt == 2'd1)
+    else if (burst_cnt == 2'd3)
         write_cnt   <= write_cnt + 8'd1 ;
 end
 
@@ -138,7 +134,7 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         write_end   <=  1'b0    ;
-    else if (burst_cnt == 2'd2 && write_cnt == WRITE_TIMEs)
+    else if (burst_cnt == 2'd2 && write_cnt == WRITE_TIMEs-1)
         write_end   <=  1'b1    ;
     else if (state == S_ACT)
         write_end   <=  1'b0    ;
@@ -223,7 +219,7 @@ always @(posedge sysclk_100M) begin
                     end
         S_PRECHG:
                 if (prech_cnt == 1'd0) begin
-                    cmd_reg         =       PRECH_END         ;
+                    cmd_reg         =       PRECHARGE         ;
                     sdram_addr      =       {4'b0000,col_addr_p, burst_cnt}    ;
                     sdram_bank_addr =       sdram_bank_addr   ;
                     end
@@ -245,16 +241,39 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         col_addr_p <= 7'd0;
-    else if (state == S_WRITE && burst_cnt == BURST_END)
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr_p == ((`COL_ADDR_END>>2)-1) && burst_cnt == BURST_END)
+        col_addr_p <= 7'd0;
+    else if (state == S_WRITE && burst_cnt == BURST_END) 
         col_addr_p <= col_addr_p + 7'd1;
+    else
+        col_addr_p  <=  col_addr_p  ;
 end
 
 // row_addr
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
-        {sdram_bank_addr, row_addr} <=  15'd0;
+        row_addr    <=  13'd0;
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr_p == ((`COL_ADDR_END>>2)-1) && burst_cnt == BURST_END)
+        row_addr    <=  13'd0   ;
     else if (state == S_WRITE && {col_addr_p, burst_cnt} == 9'b1_1111_1111)
-        {sdram_bank_addr, row_addr} <=  {sdram_bank_addr, row_addr} + 15'd1;
+        row_addr    <=  row_addr + 13'd1;
+    else
+        row_addr    <=  row_addr    ;
 end
 
+// sdram_bank_addr
+always @(posedge sysclk_100M or negedge rst_n) begin
+    if (rst_n == 1'b0)
+        sdram_bank_addr   <=  2'd0    ;
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr_p == ((`COL_ADDR_END>>2)-1) && burst_cnt == BURST_END)
+        `ifdef PINGPONG_BUFFER
+            sdram_bank_addr   <=  sdram_bank_addr + 2'b10   ;
+        `elsif BANK_ONE
+            sdram_bank_addr   <=  sdram_bank_addr;
+        `else
+            sdram_bank_addr   <=  sdram_bank_addr + 2'd01   ;
+        `endif
+    else
+        sdram_bank_addr   <=  sdram_bank_addr   ;
+end
 endmodule

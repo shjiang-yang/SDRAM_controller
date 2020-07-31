@@ -6,6 +6,15 @@
 // 
 // ===============================================
 
+// ---------------- define config --------------------
+`define     ROW_ADDR_END        938         // capacity per bank
+`define     COL_ADDR_END        256         // capacity per bank
+
+// bank (one-hot), can be {PINGPONG_BUFFER, BANK_INCR, BANK_ONE}
+`define     BANK_ONE
+
+
+
 
 module SDRAM_read(
     // system signals
@@ -30,7 +39,8 @@ module SDRAM_read(
 // ===============================================
 // ********** define params and signals ********
 // ===============================================
-localparam                      BURST_TIMES =   1   ;  // debug
+localparam                      BURST_TIMES =   64  ;  // debug
+
 localparam                      ACT_END     =   1   ;
 localparam                      READ_END    =   7   ;
 localparam                      PRECH_END   =   1   ;
@@ -49,27 +59,16 @@ localparam                      S_PRECH     =   5'b1_0000   ;
 reg                             act_cnt     ;
 reg                             prech_cnt   ;
 reg                 [ 2:0]      read_cnt    ;
-reg                 [ 3:0]      burst_cnt   ;
-reg                 [ 2:0]      trig_r      ;
+reg                 [19:0]      burst_cnt   ;
 reg                 [ 4:0]      state       ;
 reg                             row_end     ;
 reg                 [12:0]      row_addr    ;
 reg                 [ 8:0]      col_addr    ;
 
-wire                            trig_rise   ;
 
 // ===============================================
 // ************** main code ******************
 // ===============================================
-// trig detect
-always @(posedge sysclk_100M or negedge rst_n) begin
-    if (rst_n == 1'b0)
-        trig_r  <=  3'b000  ;
-    else
-        trig_r  <=  {trig_r[1:0], read_trig};
-end
-
-assign trig_rise = (~trig_r[2]) & trig_r[1] ;
 
 // state machine
 always @(posedge sysclk_100M or negedge rst_n) begin
@@ -78,7 +77,7 @@ always @(posedge sysclk_100M or negedge rst_n) begin
     else 
     case (state)
         S_IDLE: begin
-                if (trig_rise == 1'b1)
+                if (read_trig == 1'b1)
                     state   <=  S_REQ   ;
                 else 
                     state   <=  S_IDLE  ;
@@ -162,24 +161,41 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         col_addr    <=  9'd0    ;
-    else if (read_cnt == 3'd6)
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr == (`COL_ADDR_END-1-2'b11) && read_cnt == READ_END)
+        col_addr    <=  9'd0    ;
+    else if (read_cnt == 3'd7)
         col_addr    <=  col_addr + 9'd4 ;
 end
 
 // sdram_bank_addr
+always @(posedge sysclk_100M or negedge rst_n) begin
+    if (rst_n == 1'b0)
+        sdram_bank_addr <=  2'd0    ;
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr == (`COL_ADDR_END-1-2'b11) && read_cnt == READ_END)
+        `ifdef PINGPONG_BUFFER
+            sdram_bank_addr <=  sdram_bank_addr + 2'b10     ;
+        `elsif BANK_ONE
+            sdram_bank_addr <=  sdram_bank_addr ;
+        `else
+            sdram_bank_addr <=  sdram_bank_addr + 2'b01     ;
+        `endif
+end
+
 // row_addr
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
-        {sdram_bank_addr, row_addr} <=  15'd0   ;
-    else if (state == S_READ && col_addr == 9'b1_1111_1100)
-        {sdram_bank_addr, row_addr} <= {sdram_bank_addr, row_addr} + 15'd1;
+        row_addr <=  13'd0   ;
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr == (`COL_ADDR_END-1-2'b11) && read_cnt == READ_END)
+        row_addr <=  13'd0   ;
+    else if (state == S_READ && col_addr == 9'b1_1111_1100 && read_cnt == READ_END)
+        row_addr <= row_addr + 13'd1;
 end
 
 // row_end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         row_end     <=  1'b0   ;
-    else if (col_addr == 9'b1_1111_1101 && row_addr == 13'h1FF)
+    else if (col_addr == 9'b1_1111_1100)
         row_end     <=  1'b1   ;
     else if (state == S_ACT)
         row_end     <=  1'b0   ;
@@ -233,7 +249,7 @@ end
 
 // data_vld
 always @(posedge sysclk_100M) begin
-    if (read_cnt >= 3'd3 && read_cnt <= 3'd6)
+    if (read_cnt >= 3'd4 && read_cnt <= 3'd7)
         data_vld    <=  1'b1    ;
     else
         data_vld    <=  1'b0    ;
