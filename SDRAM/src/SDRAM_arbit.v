@@ -5,7 +5,7 @@
 // description:         the sdram arbit module
 // 
 // ======================================================
-
+`include "./config.v"
 
 module SDRAM_arbit(
     // system signals
@@ -29,7 +29,7 @@ module SDRAM_arbit(
     // read fifo
     input                   read_trig           ,
     output                  read_data_vld       ,  // r_fifo_wen
-    output          [ 7:0]  r_dq                ,
+    output          [15:0]  r_dq                ,
     output                  write_end           
 );
 
@@ -62,9 +62,6 @@ wire        [ 1:0]      bank_addr_refresh       ;
 wire                    arbit_write_req         ;
 wire                    write_prech_end         ;
 reg                     arbit_write_ack         ;
-// wire                    write_end               ;
-// wire                    write_trig              ;
-// wire                    write_data_vld          ;
 wire        [ 3:0]      cmd_write               ;
 wire        [12:0]      sdram_addr_write        ;
 wire        [ 1:0]      bank_addr_write         ;
@@ -73,12 +70,13 @@ wire                    arbit_read_req          ;
 wire                    read_prech_end          ;
 reg                     arbit_read_ack          ;
 wire                    read_end                ;
-// wire                    read_trig               ;
-// wire                    read_data_vld           ;
 wire        [ 3:0]      cmd_read                ;
 wire        [12:0]      sdram_addr_read         ;
 wire        [ 1:0]      bank_addr_read          ;
 
+
+// flag for last read or write ; '1' for write, '0' for read
+reg                     write_read_flag         ;
 
 // =================================================
 // *************** main code ********************
@@ -106,10 +104,16 @@ always @(posedge sysclk_100M or negedge rst_n) begin
         S_ARBIT:
                 begin
                     if (arbit_refresh_req == 1'b1)
-                        state   <= S_REF    ;
-                    else if (arbit_write_req == 1'b1)
+                        state   <=  S_REF    ;
+                    else if (arbit_write_req == 1'b1 && arbit_read_req == 1'b1 && 
+                            write_end == 1'b1 && read_end == 1'b1 && write_read_flag == 1'b0)
+                        state   <=  S_WRITE ;
+                    else if (arbit_write_req == 1'b1 && arbit_read_req == 1'b1 && 
+                            write_end == 1'b1 && read_end == 1'b1 && write_read_flag == 1'b1)
+                        state   <=  S_READ  ;
+                    else if (arbit_write_req == 1'b1 && read_end == 1'b1)
                         state   <= S_WRITE  ;
-                    else if (arbit_read_req == 1'b1)
+                    else if (arbit_read_req == 1'b1 && write_end == 1'b1)
                         state   <=  S_READ  ;
                     else 
                         state   <=  S_ARBIT  ;
@@ -149,8 +153,8 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  cmd_init            ;
                     addr                        <=  sdram_addr_init     ;
                     ba                          <=  bank_addr_init      ;
-                    // dq                          <=  16'hz               ;
-                    // r_dq                        <=  8'hz                ;
+                    // write_read_flag
+                    write_read_flag             <=  1'b0                ;
                     // control module
                     arbit_refresh_ack           <=  1'b0                ;
                     arbit_write_ack             <=  1'b0                ;
@@ -162,20 +166,32 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  NOP                 ;
                     addr                        <=  addr                ;
                     ba                          <=  ba                  ;
-                    // dq                          <=  16'hz               ;
-                    // r_dq                        <=  8'hz                ;
+                    // write_read_flag
+                    write_read_flag             <=  write_read_flag     ;
                     // control module
                     if (arbit_refresh_req == 1'b1) begin
                         arbit_refresh_ack           <=  1'b1                ;
                         arbit_write_ack             <=  1'b0                ;
                         arbit_read_ack              <=  1'b0                ;
                     end
-                    else if (arbit_write_req == 1'b1) begin 
+                    else if (arbit_write_req == 1'b1 && arbit_read_req == 1'b1 && 
+                            write_end == 1'b1 && read_end == 1'b1 && write_read_flag == 1'b0) begin 
                         arbit_refresh_ack           <=  1'b0                ;
                         arbit_write_ack             <=  1'b1                ;
                         arbit_read_ack              <=  1'b0                ;
                     end
-                    else if (arbit_read_req == 1'b1) begin 
+                    else if (arbit_write_req == 1'b1 && arbit_read_req == 1'b1 && 
+                            write_end == 1'b1 && read_end == 1'b1 && write_read_flag == 1'b1) begin 
+                        arbit_refresh_ack           <=  1'b0                ;
+                        arbit_write_ack             <=  1'b0                ;
+                        arbit_read_ack              <=  1'b1                ;
+                    end
+                    else if (arbit_write_req == 1'b1 && read_end == 1'b1) begin 
+                        arbit_refresh_ack           <=  1'b0                ;
+                        arbit_write_ack             <=  1'b1                ;
+                        arbit_read_ack              <=  1'b0                ;
+                    end
+                    else if (arbit_read_req == 1'b1 && write_end == 1'b1) begin 
                         arbit_refresh_ack           <=  1'b0                ;
                         arbit_write_ack             <=  1'b0                ;
                         arbit_read_ack              <=  1'b1                ;
@@ -192,8 +208,8 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  cmd_refresh         ;
                     addr                        <=  sdram_addr_refresh  ;
                     ba                          <=  bank_addr_refresh   ;
-                    // dq                          <=  16'hz               ;
-                    // r_dq                        <=  8'hz                ;
+                    // write_read_flag
+                    write_read_flag             <=  write_read_flag     ;
                     // control module
                     arbit_refresh_ack           <=  1'b0                ;
                     arbit_write_ack             <=  1'b0                ;
@@ -205,8 +221,8 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  cmd_write           ;
                     addr                        <=  sdram_addr_write    ;
                     ba                          <=  bank_addr_write     ;
-                    // dq                          <=  {8'hz, w_dq}        ;
-                    // r_dq                        <=  8'hz                ;
+                    // write_read_flag
+                    write_read_flag             <=  1'b1                ;
                     // control module
                     arbit_refresh_ack           <=  1'b0                ;
                     arbit_write_ack             <=  1'b0                ;
@@ -218,8 +234,8 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  cmd_read            ;
                     addr                        <=  sdram_addr_read     ;
                     ba                          <=  bank_addr_read      ;
-                    // dq                          <=  16'hz               ;
-                    // r_dq                        <=  dq[7:0]             ;
+                    // write_read_flag
+                    write_read_flag             <=  1'b0                ;
                     // control module
                     arbit_refresh_ack           <=  1'b0                ;
                     arbit_write_ack             <=  1'b0                ;
@@ -231,8 +247,8 @@ always @(posedge sysclk_100M) begin
                     {cs_n, ras_n, cas_n, we_n}  <=  NOP                 ;
                     addr                        <=  addr                ;
                     ba                          <=  ba                  ;
-                    // dq                          <=  16'hz               ;
-                    // r_dq                        <=  8'hz                ;
+                    // write_read_flag
+                    write_read_flag             <=  write_read_flag     ;
                     // control module
                     arbit_refresh_ack           <=  1'b0                ;
                     arbit_write_ack             <=  1'b0                ;
@@ -305,6 +321,10 @@ SDRAM_read SDRAM_read_inst(
     .arbit_read_ack             (   arbit_read_ack              )   ,
     .arbit_read_end             (   read_end                    )   ,
     .arbit_prech_end            (   read_prech_end              )   ,
+    // from write module
+    `ifdef PINGPONG_BUFFER
+        .write_bank_addr        (   bank_addr_write             )   ,
+    `endif
     // others
     .read_trig                  (   read_trig                   )   ,
     .data_vld                   (   read_data_vld               )   

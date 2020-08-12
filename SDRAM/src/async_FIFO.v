@@ -6,11 +6,7 @@
 // 
 // ==================================================
 
-// --------------- FIFO config ---------------------
-`define FIFO_WIDTH      16
-`define FIFO_DEPTH      512
-`define POINTER_WIDTH   10
-
+`include "./config.v"
 
 // ----------------- module ------------------------
 module async_FIFO(
@@ -47,7 +43,6 @@ reg     [`POINTER_WIDTH-1:0]        write_p_gray_sync2  ;
 reg     [`POINTER_WIDTH-1:0]        write_p_sync        ;
 reg     [`POINTER_WIDTH-1:0]        write_p_sync_r      ;
 
-
 reg     [`FIFO_WIDTH-1:0]           mem[`FIFO_DEPTH-1:0]  ;
 
 // -------------- main code --------------------------------
@@ -64,6 +59,7 @@ always @(posedge w_clk or negedge rst_n) begin
     else
         mem[write_p[`POINTER_WIDTH-2:0]]    <=  mem[write_p[`POINTER_WIDTH-2:0]]    ;
 end
+
 
 // write_p
 always @(posedge w_clk or negedge rst_n) begin

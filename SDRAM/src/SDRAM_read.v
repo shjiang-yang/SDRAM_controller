@@ -6,15 +6,7 @@
 // 
 // ===============================================
 
-// ---------------- define config --------------------
-`define     ROW_ADDR_END        938         // capacity per bank
-`define     COL_ADDR_END        256         // capacity per bank
-
-// bank (one-hot), can be {PINGPONG_BUFFER, BANK_INCR, BANK_ONE}
-`define     BANK_ONE
-
-
-
+`include "./config.v"
 
 module SDRAM_read(
     // system signals
@@ -31,6 +23,10 @@ module SDRAM_read(
     input                       arbit_read_ack  ,
     output  reg                 arbit_read_end  ,
     output  reg                 arbit_prech_end ,
+    // from write module
+    `ifdef PINGPONG_BUFFER
+        input       [ 1:0]      write_bank_addr ,
+    `endif
     // others
     input                       read_trig       ,
     output  reg                 data_vld        
@@ -171,14 +167,15 @@ end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
         sdram_bank_addr <=  2'd0    ;
-    else if (row_addr == (`ROW_ADDR_END-1) && col_addr == (`COL_ADDR_END-1-2'b11) && read_cnt == READ_END)
+    else if (row_addr == (`ROW_ADDR_END-1) && col_addr == (`COL_ADDR_END-1-2'b11) && read_cnt == READ_END) begin
         `ifdef PINGPONG_BUFFER
-            sdram_bank_addr <=  sdram_bank_addr + 2'b10     ;
+            sdram_bank_addr <=  write_bank_addr + 2'b10     ;
         `elsif BANK_ONE
             sdram_bank_addr <=  sdram_bank_addr ;
         `else
             sdram_bank_addr <=  sdram_bank_addr + 2'b01     ;
         `endif
+    end
 end
 
 // row_addr
@@ -268,7 +265,7 @@ end
 // arbit_read_end
 always @(posedge sysclk_100M or negedge rst_n) begin
     if (rst_n == 1'b0)
-        arbit_read_end    <=  1'b0    ;
+        arbit_read_end    <=  1'b1    ;
     else if (read_cnt == 3'd6 && burst_cnt == BURST_TIMES)
         arbit_read_end    <=  1'b1    ;
     else if (state == S_ACT)

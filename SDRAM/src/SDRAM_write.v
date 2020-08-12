@@ -6,13 +6,7 @@
 // 
 // ====================================================
 
-// ---------------- define config --------------------
-`define     ROW_ADDR_END        938         // capacity per bank
-`define     COL_ADDR_END        256         // capacity per bank
-
-// bank (one-hot), can be {PINGPONG_BUFFER, BANK_INCR, BANK_ONE}
-`define     BANK_ONE
-
+`include "./config.v"
 
 module SDRAM_write(
     // system singals
@@ -276,4 +270,9 @@ always @(posedge sysclk_100M or negedge rst_n) begin
     else
         sdram_bank_addr   <=  sdram_bank_addr   ;
 end
+
+`ifdef PINGPONG_BUFFER
+    assign write_bank_addr = sdram_bank_addr   ;
+`endif
+
 endmodule

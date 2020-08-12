@@ -54,9 +54,9 @@ end
 
 always #5 sysclk_100M = ~sysclk_100M;
 
-always #7 w_clk = ~w_clk;
+always #100 w_clk = ~w_clk;
 
-always #9 r_clk = ~r_clk;
+always #46 r_clk = ~r_clk;
 
 
 
